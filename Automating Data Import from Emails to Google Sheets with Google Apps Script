@@ -1,0 +1,80 @@
+// Define the Google Sheet where the data will be populated
+var sheetId = '1zXAnOx3H-ZsdYG4-oc2O-ZJBYnGKiEavXWXj4vPhpGQ'; // Correct Sheet ID, without the full URL
+var sheet = SpreadsheetApp.openById(sheetId).getSheetByName('automatic fetch data through email'); // Replace 'automatic fetch data through email' with your sheet name if needed
+
+function checkEmailAndImportCSV() {
+  var threads = GmailApp.search('has:attachment'); // Search for emails with attachments
+  
+  if (threads.length > 0) {
+    var latestThread = threads[0]; // Get the most recent thread
+    var messages = latestThread.getMessages(); // Get all messages in the thread
+    Logger.log("Thread Subject: " + latestThread.getFirstMessageSubject());
+    Logger.log("Number of messages in thread: " + messages.length);
+
+    // Process only the most recent message in the thread
+    var message = messages[messages.length - 1]; // Get the most recent message
+    var attachments = message.getAttachments(); // Get the attachments
+    Logger.log("Number of attachments in the latest message: " + attachments.length);
+    
+    // Check if there are any attachments
+    if (attachments.length > 0) {
+      // Loop through each attachment in the message
+      for (var j = 0; j < attachments.length; j++) {
+        var attachment = attachments[j];
+        
+        // Log the content type and name of the attachment
+        Logger.log("Attachment Content Type: " + attachment.getContentType());
+        Logger.log("Attachment Name: " + attachment.getName());
+        
+        // Check if the attachment is a CSV file by its content type or file extension
+        if (attachment.getContentType() === 'text/csv' || attachment.getName().endsWith('.csv')) {
+          // Parse the CSV file
+          var csvData = Utilities.parseCsv(attachment.getDataAsString());
+          
+          // Log the CSV data
+          Logger.log("CSV Data: " + csvData);
+          
+          // Clear the content except for the header row
+          var header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues(); // Get the header
+          var lastRow = sheet.getLastRow();
+          if (lastRow > 1) {
+            sheet.deleteRows(2, lastRow - 1);  // Delete rows except the header
+          }
+          
+          // Re-add the header back to the sheet
+          sheet.getRange(1, 1, 1, header[0].length).setValues(header);
+          
+          // Prepare a 2D array to append all rows at once
+          var dataToAppend = [];
+          
+          // Loop through the CSV data (skip the header row, start from row 1)
+          for (var row = 1; row < csvData.length; row++) {
+            if (csvData[row].join("") !== "") {  // Check if the row is not empty
+              Logger.log("Appending Row: " + csvData[row].join(", "));
+              dataToAppend.push(csvData[row]);
+            }
+          }
+
+          // If dataToAppend has rows, append them at once
+          if (dataToAppend.length > 0) {
+            // Insert all data in bulk at once
+            sheet.getRange(sheet.getLastRow() + 1, 1, dataToAppend.length, dataToAppend[0].length).setValues(dataToAppend);
+          }
+
+          // Optionally, label the thread as 'Processed' (apply to the whole thread)
+          var label = GmailApp.getUserLabelByName('Processed');
+          if (!label) {
+            label = GmailApp.createLabel('Processed'); // Create label if it doesn't exist
+          }
+          latestThread.addLabel(label); // Add label to the thread
+        } else {
+          Logger.log("Not a CSV file. Skipping attachment.");
+        }
+      }
+    } else {
+      Logger.log("No attachments found in the latest message.");
+    }
+  } else {
+    Logger.log("No threads with attachments found.");
+  }
+}
