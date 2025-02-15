@@ -1,0 +1,64 @@
+/* Copyright © Tejoo Fashions Ltd.
+   This software is specially developed by Tejoo Fashions Ltd. for use by its employees.
+   Unauthorized use & copying of this software will attract penalties.
+   For support contact Yogesh Sharma +91-9548340964. 
+   Email: shivayogesh1998@gmail.com.
+*/
+
+/**
+ * The function triggered when installing the add-on.
+ */
+function onInstall() {
+  onOpen();
+}
+
+/**
+ * The function triggered when opening the spreadsheet.
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Tejoo Fashions')            
+    .addItem('Start First Time Trigger', 'mainFunction')
+    .addItem('Import Email CSV', 'getReport_From_Email')
+    .addItem('Import Data', 'loadCSVFilesIntoSheets')
+    .addToUi();
+}
+
+function mainFunction() {
+  // पहले पुराने ट्रिगर हटाएं
+  deleteExistingTriggers();
+  // फिर 5-5 मिनट के नए ट्रिगर सेट करें
+  createOnEditTrigger();
+}
+
+function createOnEditTrigger() {
+  // नया 5-5 मिनट वाला ट्रिगर जोड़ें
+  ScriptApp.newTrigger('getReport_From_Email')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+
+  ScriptApp.newTrigger('loadCSVFilesIntoSheets')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+
+  SpreadsheetApp.getActiveSpreadsheet().toast("5 मिनट के ट्रिगर सेट कर दिए गए हैं!", "Notification", 3);
+}
+
+// पुराने ट्रिगर्स हटाने का फ़ंक्शन
+function deleteExistingTriggers() {
+  var allTriggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < allTriggers.length; i++) {
+    ScriptApp.deleteTrigger(allTriggers[i]);
+  }
+  SpreadsheetApp.getActiveSpreadsheet().toast("सभी पुराने ट्रिगर हटा दिए गए!", "Notification", 3);
+}
+
+function getReport_From_Email() {
+  DataExportFromERPScript.getReport_From_Email();
+}
+
+function loadCSVFilesIntoSheets() { 
+  DataExportFromERPScript.loadCSVFilesIntoSheets();
+}
