@@ -1,0 +1,94 @@
+var sheetId = '1B76PXGsZOyxOTcnEqZTvsbkfjoC57KqPTkMxD7NMbOM'; // Sheet ID
+var sheetName = 'Automated Job Receipt Register Live'; // Exact Sheet Name
+var sheet = SpreadsheetApp.openById(sheetId).getSheetByName(sheetName);
+
+function checkEmailAndImportCSV() {
+  if (!sheet) {
+    Logger.log("❌ Sheet named '" + sheetName + "' not found.");
+    return;
+  }
+
+  var targetSubject = 'Automated Job Receipt Register Live';
+
+  // Search for all threads with CSV attachments and correct subject
+  var threads = GmailApp.search('subject:"' + targetSubject + '" has:attachment filename:csv');
+
+  if (threads.length === 0) {
+    Logger.log("ℹ️ No matching email with subject: " + targetSubject);
+    return;
+  }
+
+  // Get the latest matching email
+  var latestMessage = null;
+  var latestDate = new Date(0); // Epoch
+
+  for (var i = 0; i < threads.length; i++) {
+    var messages = threads[i].getMessages();
+    for (var j = 0; j < messages.length; j++) {
+      var message = messages[j];
+      if (message.getSubject().trim() === targetSubject && message.getDate() > latestDate) {
+        latestMessage = message;
+        latestDate = message.getDate();
+      }
+    }
+  }
+
+  if (!latestMessage) {
+    Logger.log("ℹ️ No valid message found with subject: " + targetSubject);
+    return;
+  }
+
+  Logger.log("✅ Found latest matching message from: " + latestDate);
+
+  var attachments = latestMessage.getAttachments();
+  for (var k = 0; k < attachments.length; k++) {
+    var attachment = attachments[k];
+    var fileName = attachment.getName();
+    Logger.log("📎 Attachment Name: " + fileName);
+
+    if (attachment.getContentType() === 'text/csv' || fileName.endsWith('.csv')) {
+      var csvData = Utilities.parseCsv(attachment.getDataAsString());
+      Logger.log("📊 CSV Data Length: " + csvData.length);
+
+      if (csvData.length > 0 && csvData[0].length > 0) {
+        Logger.log("Header: " + csvData[0].join(', '));
+
+        // Clear sheet data except header
+        var lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          sheet.deleteRows(2, lastRow - 1);
+          Logger.log("🧹 Cleared old data rows.");
+        }
+
+        // Set header
+        sheet.getRange(1, 1, 1, csvData[0].length).setValues([csvData[0]]);
+
+        // Append new data
+        var dataToAppend = [];
+        for (var row = 1; row < csvData.length; row++) {
+          if (csvData[row].join("").trim() !== "") {
+            dataToAppend.push(csvData[row]);
+          }
+        }
+
+        if (dataToAppend.length > 0) {
+          sheet.getRange(2, 1, dataToAppend.length, dataToAppend[0].length).setValues(dataToAppend);
+          Logger.log("✅ Appended " + dataToAppend.length + " rows.");
+        } else {
+          Logger.log("⚠️ No non-empty data rows found.");
+        }
+
+        // Mark thread as processed
+        var thread = latestMessage.getThread();
+        var label = GmailApp.getUserLabelByName('Processed');
+        if (!label) label = GmailApp.createLabel('Processed');
+        thread.addLabel(label);
+        Logger.log("🏷️ Email labeled as 'Processed'.");
+
+        return; // Done after processing latest relevant message
+      } else {
+        Logger.log("⚠️ CSV is empty or malformed.");
+      }
+    }
+  }
+}
