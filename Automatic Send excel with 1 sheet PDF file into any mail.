@@ -1,0 +1,45 @@
+function sendMonthlySheetExcelAndPDF() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var spreadsheetId = ss.getId();
+  var sheetName = "SIP Tracker Dashboard";   // jis sheet ka PDF chahiye
+  var fileBaseName = "Monthly_Investment_Report";
+
+  var token = ScriptApp.getOAuthToken();
+
+  // ===== EXCEL EXPORT =====
+  var excelUrl = "https://docs.google.com/spreadsheets/d/" 
+                + spreadsheetId 
+                + "/export?format=xlsx";
+
+  var excelBlob = UrlFetchApp.fetch(excelUrl, {
+    headers: { Authorization: "Bearer " + token }
+  }).getBlob().setName(fileBaseName + ".xlsx");
+
+  // ===== PDF EXPORT (specific sheet) =====
+  var sheet = ss.getSheetByName(sheetName);
+  var gid = sheet.getSheetId();
+
+  var pdfUrl =
+    "https://docs.google.com/spreadsheets/d/" + spreadsheetId + "/export" +
+    "?format=pdf" +
+    "&gid=" + gid +
+    "&portrait=true" +
+    "&fitw=true" +
+    "&sheetnames=false" +
+    "&printtitle=false" +
+    "&pagenumbers=false" +
+    "&gridlines=false" +
+    "&fzr=false";
+
+  var pdfBlob = UrlFetchApp.fetch(pdfUrl, {
+    headers: { Authorization: "Bearer " + token }
+  }).getBlob().setName(fileBaseName + ".pdf");
+
+  // ===== SEND EMAIL =====
+  MailApp.sendEmail({
+    to: "shivayogesh1998@gmail.com",
+    subject: "Monthly Investment Report",
+    body: "Attached are the updated monthly investment reports (Excel + PDF).",
+    attachments: [excelBlob, pdfBlob]
+  });
+}
