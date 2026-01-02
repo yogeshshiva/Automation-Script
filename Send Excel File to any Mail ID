@@ -1,0 +1,24 @@
+function sendMonthlySheet() {
+  var spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+  var fileName = "Monthly_Expense_Report.xlsx";
+
+  // Excel export URL
+  var url = "https://docs.google.com/spreadsheets/d/" + spreadsheetId + "/export?format=xlsx";
+
+  var token = ScriptApp.getOAuthToken();
+
+  var response = UrlFetchApp.fetch(url, {
+    headers: {
+      'Authorization': 'Bearer ' + token
+    }
+  });
+
+  var blob = response.getBlob().setName(fileName);
+
+  MailApp.sendEmail({
+    to: "shivayogesh1998@gmail.com",
+    subject: "Monthly Expenses Report",
+    body: "Attached is the updated monthly expenses Excel sheet.",
+    attachments: [blob]
+  });
+}
