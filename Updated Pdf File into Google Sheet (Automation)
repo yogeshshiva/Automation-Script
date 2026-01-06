@@ -1,0 +1,112 @@
+function saveTodayPdfToSheetAndDrive() {
+
+  var LABEL_NAME = 'Photoshoot Report';
+  var FOLDER_NAME = 'Gmail PDFs';
+  var SHEET_NAME = 'Sheet1';
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  var folder = DriveApp.getFoldersByName(FOLDER_NAME).next();
+
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  /* 🔴 DELETE NON-TODAY DATA FROM SHEET */
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = dates.length - 1; i >= 0; i--) {
+      var d = new Date(dates[i][0]);
+      d.setHours(0, 0, 0, 0);
+      if (d.getTime() !== today.getTime()) {
+        sheet.deleteRow(i + 2);
+      }
+    }
+  }
+
+  /* ✅ BUILD SUBJECT → ROW MAP */
+  var subjectRowMap = {};
+  lastRow = sheet.getLastRow();
+
+  if (lastRow > 1) {
+    var data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    data.forEach((row, index) => {
+      if (row[1]) {
+        subjectRowMap[row[1].toString().trim().toLowerCase()] = index + 2;
+      }
+    });
+  }
+
+  /* ✅ SEARCH GMAIL */
+  var threads = GmailApp.search(
+    'label:"' + LABEL_NAME + '" has:attachment -in:trash'
+  );
+
+  var now = new Date();
+
+  threads.forEach(thread => {
+    thread.getMessages().forEach(msg => {
+
+      var msgDate = new Date(msg.getDate());
+      msgDate.setHours(0, 0, 0, 0);
+      if (msgDate.getTime() !== today.getTime()) return;
+
+      var subject = msg.getSubject() || '(no subject)';
+      var subjectKey = subject.trim().toLowerCase();
+
+      msg.getAttachments().forEach(att => {
+
+        if (!att.getName().toLowerCase().endsWith('.pdf')) return;
+
+        var pdfName = att.getName();
+        var link = '';
+
+        /* 🔁 SAME SUBJECT → UPDATE ROW */
+        if (subjectRowMap[subjectKey]) {
+
+          var row = subjectRowMap[subjectKey];
+
+          var file = folder.createFile(att);
+
+          // 🔐 IMPORTANT: MAKE FILE PUBLIC (VIEW ONLY)
+          file.setSharing(
+            DriveApp.Access.ANYONE_WITH_LINK,
+            DriveApp.Permission.VIEW
+          );
+
+          link = file.getUrl();
+
+          sheet.getRange(row, 1, 1, 4).setValues([[
+            now,
+            subject,
+            pdfName,
+            link
+          ]]);
+
+        } 
+        /* ➕ NEW SUBJECT → ADD ROW */
+        else {
+
+          var file = folder.createFile(att);
+
+          // 🔐 IMPORTANT: MAKE FILE PUBLIC (VIEW ONLY)
+          file.setSharing(
+            DriveApp.Access.ANYONE_WITH_LINK,
+            DriveApp.Permission.VIEW
+          );
+
+          link = file.getUrl();
+
+          sheet.appendRow([
+            now,
+            subject,
+            pdfName,
+            link
+          ]);
+
+          subjectRowMap[subjectKey] = sheet.getLastRow();
+        }
+
+      });
+    });
+  });
+}
